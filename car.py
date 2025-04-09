@@ -9,6 +9,77 @@ class Controls:
         self.left = False
         self.right = False
 
+def draw_dashed_line(surf, color, start_pos, end_pos, width=1, dash_length=20, space_length=20):
+    """ Draw a dashed line on a Pygame surface.
+        This function draws dashes from start_pos to end_pos.
+    """
+    origin = pygame.math.Vector2(start_pos)
+    target = pygame.math.Vector2(end_pos)
+    displacement = target - origin
+    length = displacement.length()
+    # Normalize the displacement vector.
+    direction = displacement.normalize()
+    # Calculate the number of dashes we will have.
+    dash_count = int(length // (dash_length + space_length))
+    
+    current_pos = pygame.math.Vector2(origin)
+    for i in range(dash_count):
+        # Compute the end point for the dash.
+        dash_end = current_pos + direction * dash_length
+        pygame.draw.line(surf, color, current_pos, dash_end, width)
+        # Skip the space between dashes.
+        current_pos = dash_end + direction * space_length
+
+class Road:
+    def __init__(self, x, width, lane_count=3):
+        self.width = width
+        self.x = x
+        self.lane_count = lane_count
+
+        self.left = x - (width // 2)
+        self.right = x + (width // 2)
+
+        infinity = 1000000
+        self.top = -infinity
+        self.bottom = infinity
+
+        top_left = pygame.math.Vector2(self.left, self.top)
+        top_right = pygame.math.Vector2(self.right, self.top)
+        bottom_left = pygame.math.Vector2(self.left, self.bottom)
+        bottom_right = pygame.math.Vector2(self.right, self.bottom)
+
+        self.borders = [
+            [top_left, top_right],
+            [bottom_left, bottom_right]
+        ]
+
+    def draw(self,screen, offset_y=0):
+        white = (255, 255, 255)
+        border_width = 5 
+
+        dynamic_top = self.top + offset_y
+        dynamic_bottom = self.bottom + offset_y
+
+        pygame.draw.line(screen, white, (self.left, dynamic_top), (self.left, dynamic_bottom), border_width)
+        pygame.draw.line(screen, white, (self.right, dynamic_top), (self.right, dynamic_bottom), border_width)
+
+        for i in range(1, self.lane_count):
+            x = lerp(self.left, 
+                     self.right, 
+                     i / self.lane_count
+                     )
+            draw_dashed_line(screen, white, (x, dynamic_top), (x, dynamic_bottom), width=border_width, dash_length=20, space_length=20)
+            self.borders.append([pygame.math.Vector2(x, dynamic_top), pygame.math.Vector2(x, dynamic_bottom)])
+
+
+    def get_lane_center(self, lane_index):
+        lane_width = self.width / self.lane_count
+        min_x = min(lane_index,self.lane_count - 1)
+        return self.left + (lane_width/2) + min_x * lane_width
+
+def lerp(a, b, t):
+    return a + (b - a) * t
+
 # The Car class replicates the JavaScript logic
 class Car:
     def __init__(self, x, y, width, height):
@@ -18,9 +89,9 @@ class Car:
         self.height = height
 
         self.speed = 0.0
-        self.acceleration = 0.2
-        self.maxSpeed = 3.0
-        self.friction = 0.05
+        self.acceleration = .6
+        self.maxSpeed = 5.0
+        self.friction = 0.2
         self.angle = 0.0
 
         self.controls = Controls()
@@ -63,7 +134,7 @@ class Car:
         self.x -= math.sin(self.angle) * self.speed
         self.y -= math.cos(self.angle) * self.speed
 
-    def draw(self, screen):
+    def draw(self, screen, offset_y=0):
         # Create a surface for the car
         car_surface = pygame.Surface((self.height, self.width), pygame.SRCALPHA)
         car_surface.fill((0, 0, 0))  # fill with red color
@@ -72,38 +143,8 @@ class Car:
         rotated_surface = pygame.transform.rotate(car_surface, math.degrees(self.angle))
         
         # Center the rotated surface at the car's current position
-        rect = rotated_surface.get_rect(center=(self.x, self.y))
+        rect = rotated_surface.get_rect(center=(self.x, self.y + offset_y))
         screen.blit(rotated_surface, rect.topleft)
-
-    def draw(self, screen):
-        # Draw the road as a rectangle
-        pygame.draw.rect(screen, (50, 50, 50), (0, 0, self.width, self.height))
-
-class Road:
-    def __init__(self, x, width, lane_count=3):
-        self.width = width
-        self.x = x
-        self.lane_count = lane_count
-
-        self.left = x - (width // 2)
-        self.right = x + (width // 2)
-
-        infinity = 1000000
-        self.top = -infinity
-        self.bottom = infinity
-    def draw(self,screen):
-        screen.lineWidth = 5
-        screen.strokeStyle = "white"
-
-        screen.beginPath()
-        screen.moveTo(self.left, self.top)
-        screen.lineTo(self.left, self.bottom)
-        screen.stroke()
-
-        screen.beginPath()
-        screen.moveTo(self.right, self.top)
-        screen.lineTo(self.right, self.bottom)
-        screen.stroke()
 
 # Example usage in a Pygame loop
 def main():
@@ -116,10 +157,14 @@ def main():
 
     canvas_width = 200
     canvas_height = screen_height
+
     canvas = pygame.Surface((canvas_width, canvas_height))
 
-    car = Car(canvas_width // 2, canvas_height // 2, 50, 30)
-    road = Road(canvas_width // 2, canvas_width)
+
+
+    road = Road(canvas_width // 2, canvas_width * 0.9)
+    car = Car(road.get_lane_center(1), canvas_height // 2, 50, 30)
+
     
     running = True
     while running:
@@ -140,15 +185,16 @@ def main():
 
         # Draw everything
         screen.fill((169, 169, 169))  # light gray background, similar to your CSS
-
         canvas.fill((211, 211, 211))  # white canvas
-        
-        road.draw(canvas)
-        car.draw(canvas)
-        
+
+        offset_y = -car.y + canvas_height *.6
+
+        road.draw(canvas, offset_y)
+        car.draw(canvas, offset_y)
+
 
         screen.blit(canvas, ((screen_width - canvas_width) // 2, 0))
-        
+
         pygame.display.flip()
         clock.tick(60)
     
