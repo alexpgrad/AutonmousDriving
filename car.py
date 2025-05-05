@@ -1,13 +1,99 @@
 import math
 import pygame
 
+class Sensor:
+    def __init__(self, car, ray_count=5, ray_length=150, ray_spread=math.pi / 2):
+        self.car = car
+        self.ray_count = ray_count
+        self.ray_length = ray_length
+        self.ray_spread = ray_spread
+        self.rays = []
+        self.readings = []
+
+    def update(self, road_borders):
+        self.cast_rays()
+        self.readings = [
+            self.get_reading(ray, road_borders) 
+            for ray in self.rays
+        ]
+
+    def get_reading(self, ray, road_borders):
+        touches = []
+        for border in road_borders:
+            collision = get_intersection(ray[0], ray[1], border[0], border[1])
+            if collision:
+                touches.append(collision)
+        if not touches:
+            return None
+        min_offset = min(touch["offset"] for touch in touches)
+        for touch in touches:
+            if touch["offset"] == min_offset:
+                return touch
+            
+
+    def cast_rays(self):
+        self.rays = []
+        for i in range(self.ray_count):
+            if self.ray_count == 1:
+                fraction = .5
+            else:
+                fraction = i / (self.ray_count - 1)
+            ray_angle = lerp(self.ray_spread/2, -self.ray_spread /2, fraction) + self.car.angle
+
+            start = pygame.math.Vector2(self.car.x, self.car.y)
+            end = pygame.math.Vector2(
+                self.car.x - math.sin(ray_angle) * self.ray_length,
+                self.car.y - math.cos(ray_angle) * self.ray_length
+            )
+            self.rays.append((start, end))
+
+    def draw(self, screen, offset_y=0):
+        for i in range(self.ray_count):
+            start, end = self.rays[i]
+            reading = self.readings[i]
+
+            if reading: 
+                end_point = pygame.math.Vector2(reading["x"], reading["y"] )
+            else: 
+                end_point = end
+
+            s_pos = (start.x, start.y + offset_y)
+            e_pos = (end_point.x, end_point.y + offset_y)
+            orig_end_pos = (end.x, end.y + offset_y)
+            pygame.draw.line(screen, (255, 255, 0), s_pos, e_pos, 2)
+            pygame.draw.line(screen, (0, 0, 0), orig_end_pos, e_pos, 2)
 # A simple controls class to store key states
+
 class Controls:
     def __init__(self):
         self.forward = False
         self.reverse = False
         self.left = False
         self.right = False
+
+def get_intersection(p1, p2, p3, p4):
+
+    x1, y1 = p1.x, p1.y
+    x2, y2 = p2.x, p2.y
+    x3, y3 = p3.x, p3.y
+    x4, y4 = p4.x, p4.y
+
+    denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
+    if denom == 0:
+        return None  # parallel or coincident
+
+    t = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom
+    u = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom
+
+    if 0 <= t <= 1 and 0 <= u <= 1:
+        intersect_x = x1 + t * (x2 - x1)
+        intersect_y = y1 + t * (y2 - y1)
+        return {
+            "x": intersect_x,
+            "y": intersect_y,
+            "offset": t
+        }
+    return None
 
 def draw_dashed_line(surf, color, start_pos, end_pos, width=1, dash_length=20, space_length=20):
     """ Draw a dashed line on a Pygame surface.
@@ -44,8 +130,8 @@ class Road:
         self.bottom = infinity
 
         top_left = pygame.math.Vector2(self.left, self.top)
-        top_right = pygame.math.Vector2(self.right, self.top)
-        bottom_left = pygame.math.Vector2(self.left, self.bottom)
+        top_right = pygame.math.Vector2(self.left, self.bottom)
+        bottom_left = pygame.math.Vector2(self.right, self.top)
         bottom_right = pygame.math.Vector2(self.right, self.bottom)
 
         self.borders = [
@@ -94,10 +180,13 @@ class Car:
         self.friction = 0.2
         self.angle = 0.0
 
+        self.sensor = Sensor(self)
+
         self.controls = Controls()
 
-    def update(self):
+    def update(self, road_borders):
         self.move()
+        self.sensor.update(road_borders)
 
     def move(self):
         # Adjust speed based on controls
@@ -146,12 +235,15 @@ class Car:
         rect = rotated_surface.get_rect(center=(self.x, self.y + offset_y))
         screen.blit(rotated_surface, rect.topleft)
 
+        self.sensor.draw(screen, offset_y)
+
 # Example usage in a Pygame loop
 def main():
     pygame.init()
     screen_width, screen_height = 1500, 1100
     screen = pygame.display.set_mode((screen_width, screen_height))
     pygame.display.set_caption("Self-driving Car Simulation")
+    
     
     clock = pygame.time.Clock()
 
@@ -181,7 +273,7 @@ def main():
         car.controls.right = keys[pygame.K_RIGHT]
         
         # Update car physics
-        car.update()
+        car.update(road.borders)
 
         # Draw everything
         screen.fill((169, 169, 169))  # light gray background, similar to your CSS
