@@ -323,7 +323,7 @@ def lerp(a, b, t):
 
 # The Car class replicates the JavaScript logic
 class Car:
-    def __init__(self, x, y, width, height, control_type, max_speed=3.0, color=(0, 0, 255), alpha= 1):
+    def __init__(self, x, y, width, height, control_type, max_speed=3.0, color=(0, 0, 255)):
         self.x = x
         self.y = y
         self.width = width
@@ -435,7 +435,7 @@ class Car:
         self.x -= math.sin(self.angle) * self.speed
         self.y -= math.cos(self.angle) * self.speed
 
-    def draw(self, screen, offset_y=0):
+    def draw(self, screen, offset_y=0, draw_sensor=True):
     # 1) Choose fill color based on damaged state
         color = (128, 128, 128) if self.damaged else self.base_color
 
@@ -449,7 +449,7 @@ class Car:
     # pygame.draw.polygon(screen, (255,255,255), pts, 2)
 
     # 5) Draw your sensor rays on top
-        if self.sensor:
+        if draw_sensor and self.sensor:
             self.sensor.draw(screen, offset_y)
 
 
@@ -475,19 +475,19 @@ def main():
 
     def generate_traffic(road, start_y):
         return [   
-            Car(road.get_lane_center(1),  start_y - 100, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0), alpha= 0.2), 
-            Car(road.get_lane_center(0),  start_y - 300, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0), alpha= 0.2),
-            Car(road.get_lane_center(2),  start_y - 300, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0), alpha= 0.2),
-            Car(road.get_lane_center(0),  start_y - 500, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0), alpha= 0.2),
-            Car(road.get_lane_center(1),  start_y - 500, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0), alpha= 0.2),
-            Car(road.get_lane_center(1),  start_y  - 700, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0), alpha= 0.2),
-            Car(road.get_lane_center(2),  start_y - 700, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0), alpha= 0.2),
+            Car(road.get_lane_center(1),  start_y - 100, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0)), 
+            Car(road.get_lane_center(0),  start_y - 300, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0)),
+            Car(road.get_lane_center(2),  start_y - 300, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0)),
+            Car(road.get_lane_center(0),  start_y - 500, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0)),
+            Car(road.get_lane_center(1),  start_y - 500, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0)),
+            Car(road.get_lane_center(1),  start_y  - 700, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0)),
+            Car(road.get_lane_center(2),  start_y - 700, 50, 30, control_type="dummy", max_speed = 2.0, color =(255, 0, 0)),
 ]
     
     def create_cars(N):
         cars = []
         for i in range(N):
-            cars.append(Car(road.get_lane_center(1), start_y, 50, 30, control_type="AI", max_speed=6.0, color=(0, 0, 255), alpha=1))
+            cars.append(Car(road.get_lane_center(1), start_y, 50, 30, control_type="AI", max_speed=6.0, color=(0, 0, 255)))
         return cars
 
     start_y = canvas_height - 100  
@@ -502,7 +502,7 @@ def main():
             brain_data = copy.deepcopy(best_brain)
             car.brain = NeuralNetwork.from_dict(brain_data)
             if i != 0:
-                NeuralNetwork.mutate(car.brain, mutation_rate=0.2)
+                NeuralNetwork.mutate(car.brain, mutation_rate=0.1)
 
     traffic = generate_traffic(road, start_y)
 
@@ -549,9 +549,9 @@ def main():
             t.draw(canvas, offset_y)
 
         for ai in cars:
-            ai.draw(canvas, offset_y)
+            ai.draw(canvas, offset_y, draw_sensor=False)
 
-        best_car.draw(canvas, offset_y)
+        best_car.draw(canvas, offset_y, draw_sensor=True)
 
         screen.blit(canvas, ((screen_width - canvas_width) // 2, 0))
 
